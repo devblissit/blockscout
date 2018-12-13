@@ -3,6 +3,7 @@ defmodule BlockScoutWeb.BlockView do
 
   import Math.Enum, only: [mean: 1]
 
+  alias Explorer.Chain
   alias Explorer.Chain.{Block, Wei}
 
   @dialyzer :no_match
@@ -45,5 +46,22 @@ defmodule BlockScoutWeb.BlockView do
 
   def formatted_timestamp(%Block{timestamp: timestamp}) do
     Timex.format!(timestamp, "%b-%d-%Y %H:%M:%S %p %Z", :strftime)
+  end
+
+  def show_reward?(nil, nil), do: false
+  def show_reward?(_validator_reward, _uncle_reward), do: true
+
+  def show_reward?(nil), do: false
+  def show_reward?([]), do: false
+  def show_reward?(_), do: true
+
+  def formatted_reward(block_reward) do
+    {:ok, decimal} = Wei.dump(block_reward.reward)
+
+    Cldr.Number.to_string!(decimal)
+  end
+
+  def combined_rewards_value(block) do
+    Cldr.Number.to_string!(Chain.block_combined_rewards(block))
   end
 end

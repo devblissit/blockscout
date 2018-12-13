@@ -38,7 +38,7 @@ defmodule Explorer.Chain do
     Wei
   }
 
-  alias Explorer.Chain.Block.EmissionReward
+  alias Explorer.Chain.Block.{EmissionReward, Reward}
   alias Explorer.{PagingOptions, Repo}
 
   alias Explorer.Counters.{
@@ -2137,5 +2137,57 @@ defmodule Explorer.Chain do
       )
 
     Repo.all(query, timeout: :infinity)
+  end
+
+  def block_hash_to_validator_reward(block_hash) do
+    query =
+      from(
+        r in Reward,
+        where: r.block_hash == ^block_hash and r.address_type == ^:validator
+      )
+
+    Repo.one(query)
+  end
+
+  def block_hash_to_uncle_reward(block_hash) do
+    query =
+      from(
+        r in Reward,
+        where: r.block_hash == ^block_hash and r.address_type == ^:uncle
+      )
+
+    Repo.one(query)
+  end
+
+  def block_hash_to_block_gas_fee(block_hash) do
+    {:ok, gas_fee} =
+      block_hash
+      |> Transaction.block_hash_to_transactions()
+      |> Repo.stream_reduce(0, &block_gas_fee_reducer/2)
+
+    gas_fee
+  end
+
+  def block_gas_fee_reducer(transaction, accumulator) do
+    {:ok, gas_price} = Wei.dump(transaction.gas_price)
+
+    transaction.gas_used
+    |> Decimal.mult(gas_price)
+    |> Decimal.add(accumulator)
+  end
+
+  @doc """
+  Combined block reward from all the fees.
+  """
+  def block_combined_rewards(block) do
+    block.rewards
+    |> Enum.reduce(
+      0,
+      fn block_reward, acc ->
+        {:ok, reward} = Wei.dump(block_reward.reward)
+
+        Decimal.add(reward, acc)
+      end
+    )
   end
 end

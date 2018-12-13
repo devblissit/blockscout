@@ -612,4 +612,11 @@ defmodule Explorer.Chain.Transaction do
       limit: 1
     )
   end
+
+  def block_hash_to_transactions(block_hash) do
+    from(
+      t in Transaction,
+      where: t.block_hash == ^block_hash
+    )
+  end
 end

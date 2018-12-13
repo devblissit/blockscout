@@ -22,6 +22,8 @@ defmodule Explorer.ChainTest do
     Wei
   }
 
+  alias Explorer.Chain.Block.Reward
+
   alias Explorer.Chain.Supply.ProofOfAuthority
 
   alias Explorer.Counters.{AddessesWithBalanceCounter, TokenHoldersCounter}
@@ -3173,6 +3175,104 @@ defmodule Explorer.ChainTest do
 
       assert Chain.list_block_numbers_with_invalid_consensus() ==
                [block2_with_invalid_consensus.number, block8_with_invalid_consensus.number]
+    end
+  end
+
+  describe "block_hash_to_validator_reward/1" do
+    test "returns the block validators info" do
+      block = insert(:block)
+      miner_hash = block.miner_hash
+      block_hash = block.hash
+
+      insert(:reward, address_hash: miner_hash, block_hash: block_hash, address_type: :validator)
+
+      assert %Reward{
+        address_hash: miner_hash,
+        address_type: :validator,
+        block_hash: block_hash
+      } = Chain.block_hash_to_validator_reward(block.hash)
+    end
+  end
+
+  describe "block_hash_to_uncle_reward/1" do
+    test "returns the block validators info" do
+      block = insert(:block)
+      miner_hash = block.miner_hash
+      block_hash = block.hash
+
+      insert(:reward, address_hash: miner_hash, block_hash: block_hash, address_type: :uncle)
+
+      assert %Reward{
+        address_hash: miner_hash,
+        address_type: :uncle,
+        block_hash: block_hash
+      } = Chain.block_hash_to_uncle_reward(block.hash)
+    end
+  end
+
+  describe "block_hash_to_block_gas_fee/1" do
+    test "calculates the total gas fee of a block" do
+      block = insert(:block, number: 1)
+
+      :transaction
+      |> insert(gas_price: 10)
+      |> with_block(block)
+      |> Transaction.changeset(%{gas_used: Decimal.new(2)})
+      |> Repo.update!()
+
+      :transaction
+      |> insert(gas_price: 10)
+      |> with_block(block)
+      |> Transaction.changeset(%{gas_used: Decimal.new(2)})
+      |> Repo.update!()
+
+      assert Chain.block_hash_to_block_gas_fee(block.hash) == Decimal.new(40)
+    end
+  end
+
+  describe "block_gas_fee_reducer/2" do
+    test "multiplies the gas_used with the gas_price and adds to the accumulator" do
+      block = insert(:block, number: 1)
+
+      transaction =
+        :transaction
+        |> insert(gas_price: 10)
+        |> with_block(block)
+        |> Transaction.changeset(%{gas_used: Decimal.new(2)})
+        |> Repo.update!()
+
+      assert Chain.block_gas_fee_reducer(transaction, 0) == Decimal.new(20)
+    end
+  end
+
+  describe "block_combined_rewards/1" do
+    test "sums the block_rewards values" do
+      block = insert(:block)
+      insert(
+        :reward,
+        address_hash: block.miner_hash,
+        block_hash: block.hash,
+        address_type: :validator,
+        reward: Decimal.new(1000000000000000000)
+      )
+      insert(
+        :reward,
+        address_hash: block.miner_hash,
+        block_hash: block.hash,
+        address_type: :emission_funds,
+        reward: Decimal.new(1000000000000000000)
+      )
+      insert(
+        :reward,
+        address_hash: block.miner_hash,
+        block_hash: block.hash,
+        address_type: :uncle,
+        reward: Decimal.new(1000000000000000000)
+      )
+
+      block = Repo.preload(block, :rewards)
+
+      assert Chain.block_combined_rewards(block) == Decimal.new(3000000000000000000)
     end
   end
 end

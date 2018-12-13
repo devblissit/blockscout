@@ -8,6 +8,7 @@ defmodule Indexer.Block.Fetcher do
   require Logger
 
   alias EthereumJSONRPC.{Blocks, FetchedBeneficiaries}
+  alias Explorer.Chain
   alias Explorer.Chain.{Address, Block, Import}
   alias Indexer.{AddressExtraction, CoinBalance, MintTransfer, Token, TokenTransfers, Tracer}
   alias Indexer.Address.{CoinBalances, TokenBalances}
@@ -237,7 +238,7 @@ defmodule Indexer.Block.Fetcher do
   defp fetch_validation_reward(beneficiary, transactions) do
     transactions
     |> Stream.filter(fn t -> t.block_number == beneficiary.block_number end)
-    |> Enum.reduce(0, fn t, acc -> acc + t.gas_used * t.gas_price end)
+    |> Enum.reduce(0, &Chain.block_gas_fee_reducer/2)
   end
 
   # `fetched_balance_block_number` is needed for the `CoinBalanceFetcher`, but should not be used for `import` because the
